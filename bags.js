@@ -7,6 +7,8 @@ import { WebSocketServer } from 'ws';
 const CONFIG_PATH = 'bags_config.json';
 const BAGS_FEE_V2 = 'FEE2tBhCKAt7shrod19QttSVREUYPiyMzoku1mL1gqVK';
 const BAGS_FEE_V1 = 'FEEhPbKVKnco9EXnaY3i4R5rQVUx91wgVfu8qokixywi';
+const TG_TOKEN = '8732092516:AAG-C3CneofOGTwgJeBNyH6nzoECkZ7kN7A';
+const TG_CHAT_ID = '-5171513471';
 
 function loadConfig() {
   try {
@@ -177,6 +179,30 @@ async function sendDiscordAlert(wallet, signature, claim) {
   } catch (e) {
     log(`Erro Discord: ${e.message}`, 'err');
   }
+
+  // Telegram
+  const axiomLink = wallet.coinMint
+    ? `https://axiom.trade/meme/${wallet.coinMint}?chain=sol`
+    : '';
+  const tgMsg = `🚨 <b>BAGS FEE CLAIM DETECTADO</b>\n\n`
+    + `<b>Label:</b> ${wallet.label}\n`
+    + `<b>Instrucao:</b> ${claim.instruction}\n`
+    + `<b>Valor:</b> ${solField}\n`
+    + `<b>Detalhes:</b> ${claim.details}\n`
+    + (axiomLink ? `<b>Moeda:</b> <a href="${axiomLink}">Axiom</a>\n` : '')
+    + `<b>Tx:</b> <a href="${solscanUrl}">Solscan</a>\n`
+    + `<b>Wallet:</b> <a href="${walletUrl}">Ver</a>`;
+  await sendTelegram(tgMsg);
+}
+
+async function sendTelegram(text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+    });
+  } catch {}
 }
 
 async function sendWalletAddedAlert(wallet) {
@@ -208,6 +234,16 @@ async function sendWalletAddedAlert(wallet) {
       body: JSON.stringify(embed),
     });
   } catch {}
+
+  // Telegram
+  const axiomLink = wallet.coinMint
+    ? `https://axiom.trade/meme/${wallet.coinMint}?chain=sol`
+    : '';
+  const tgMsg = `📌 <b>NOVA COIN ADICIONADA</b>\n\n`
+    + `<b>Label:</b> ${wallet.label || 'Sem nome'}\n`
+    + `<b>Wallet:</b> <a href="${walletUrl}">${wallet.address.slice(0, 8)}...</a>\n`
+    + (axiomLink ? `<b>Moeda:</b> <a href="${axiomLink}">Axiom</a>\n` : '');
+  await sendTelegram(tgMsg);
 }
 
 // ─── Monitor Loop ────────────────────────────────
