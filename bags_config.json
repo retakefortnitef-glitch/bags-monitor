@@ -1,0 +1,12 @@
+{
+  "wallets": [
+    {
+      "address": "GcpWR6duB4M2GMJY4oS6n2qxXh3NzSDWX2Wrtb8MZRcq",
+      "coinMint": "9H3VMBXVpEKK82kKkXBhd339EoF8pR8HXnw4vJJDhuG1",
+      "label": "tortelini 2"
+    }
+  ],
+  "discordWebhookUrl": "https://discordapp.com/api/webhooks/1492011668106907708/rkv32BN1C495FW1-k7h5X6yIGIl8jYDk9uCmPRLawb3osgX1o25EuAFzG06zwLCLNPtH",
+  "rpcUrl": "https://maximum-intensive-uranium.solana-mainnet.quiknode.pro/e2ee8e9f08e81725ecffa13c02331f36074360c5/",
+  "pollIntervalSecs": 1
+}

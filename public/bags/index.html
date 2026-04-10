@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bags Fee Monitor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#0a0a0c;--bg2:#111114;--bg3:#18181c;--bg4:#1e1e24;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--text:#f0f0f0;--text2:#888;--text3:#444;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--purple:#8b5cf6;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;}
+.sidebar{width:210px;min-height:100vh;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1rem 0.75rem;flex-shrink:0;}
+.logo{padding:0 0.5rem 1rem;border-bottom:1px solid var(--border);margin-bottom:0.75rem;display:flex;align-items:center;gap:10px;}
+.logo-icon{width:30px;height:30px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.logo-name{font-size:14px;font-weight:600;}
+.logo-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.nav-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;padding:0.5rem 0.5rem 0.25rem;margin-top:0.25rem;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text2);transition:all 0.15s;border:none;background:none;width:100%;text-align:left;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:var(--bg3);color:var(--text);border:1px solid var(--border2);}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;}
+.sidebar-footer{margin-top:auto;padding-top:0.75rem;border-top:1px solid var(--border);}
+.conn-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);padding:0.4rem 0.5rem;}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;}
+.conn-dot.ok{background:var(--green);}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0.875rem 1.5rem;border-bottom:1px solid var(--border);background:var(--bg2);}
+.topbar-title{font-size:15px;font-weight:500;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.status-pill{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--border2);color:var(--text2);}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+.status-dot.running{background:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,0.15);}
+.content{flex:1;padding:1.5rem;overflow-y:auto;display:flex;flex-direction:column;gap:1.25rem;}
+.section{display:none;flex-direction:column;gap:1.25rem;}
+.section.visible{display:flex;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;}
+.card-title{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:0.875rem;display:flex;align-items:center;justify-content:space-between;}
+.label{font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+input[type=text],input[type=number],input[type=password]{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border 0.15s;}
+input:focus{border-color:var(--blue);}
+.btn{padding:7px 14px;border-radius:7px;border:1px solid var(--border2);background:none;font-size:13px;cursor:pointer;color:var(--text);font-family:inherit;transition:all 0.15s;}
+.btn:hover{background:var(--bg3);}
+.btn-primary{background:var(--blue);color:white;border-color:var(--blue);}
+.btn-primary:hover{opacity:0.85;background:var(--blue);}
+.btn-green{background:var(--green);color:white;border-color:var(--green);}
+.btn-green:hover{opacity:0.85;background:var(--green);}
+.btn-danger{color:var(--red);border-color:var(--red);}
+.btn-danger:hover{background:rgba(239,68,68,0.1);}
+.btn-sm{padding:4px 10px;font-size:11px;}
+.input-row{display:flex;gap:8px;align-items:end;}
+.input-row .field{flex:1;}
+.stat-card{background:var(--bg3);border-radius:8px;padding:0.875rem 1rem;border:1px solid var(--border);}
+.stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;}
+.stat-value{font-size:26px;font-weight:600;}
+.log-box{font-family:'SF Mono','Fira Code',monospace;font-size:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);padding:0.875rem 1rem;min-height:200px;max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;}
+.log-line{display:flex;gap:10px;}
+.log-time{color:var(--text3);flex-shrink:0;}
+.log-msg{color:var(--text);word-break:break-all;}
+.log-msg.ok{color:var(--green);}
+.log-msg.warn{color:var(--yellow);}
+.log-msg.err{color:var(--red);}
+.log-msg.info{color:var(--text2);}
+.wallet-list{display:flex;flex-direction:column;gap:8px;}
+.wallet-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);}
+.wallet-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1;}
+.wallet-icon{width:32px;height:32px;border-radius:8px;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;border:1px solid var(--border);}
+.wallet-info{min-width:0;}
+.wallet-name{font-size:13px;font-weight:500;}
+.wallet-addr{font-size:11px;color:var(--text2);font-family:'SF Mono','Fira Code',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;}
+.wallet-mint{font-size:10px;color:var(--text3);margin-top:2px;font-family:'SF Mono','Fira Code',monospace;}
+.wallet-actions{display:flex;gap:6px;flex-shrink:0;}
+.claim-list{display:flex;flex-direction:column;gap:10px;}
+.claim-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;border-left:3px solid var(--green);}
+.claim-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.claim-label{font-size:13px;font-weight:600;color:var(--green);}
+.claim-time{font-size:11px;color:var(--text3);}
+.claim-details{font-size:12px;color:var(--text2);line-height:1.6;}
+.claim-detail-row{display:flex;gap:8px;margin-top:4px;}
+.claim-detail-key{color:var(--text3);min-width:80px;}
+.claim-detail-val{color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:11px;}
+.claim-detail-val a{color:var(--blue);text-decoration:none;}
+.claim-detail-val a:hover{text-decoration:underline;}
+.empty{color:var(--text3);font-size:13px;font-style:italic;text-align:center;padding:2rem;}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">B</div>
+    <div>
+      <div class="logo-name">Bags Monitor</div>
+      <div class="logo-sub">Fee Claim Tracker</div>
+    </div>
+  </div>
+
+  <div class="nav-label">Monitor</div>
+  <button class="nav-item active" onclick="showSection('dashboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </button>
+  <button class="nav-item" onclick="showSection('wallets')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4h-4z"/></svg>
+    Wallets
+  </button>
+  <button class="nav-item" onclick="showSection('claims')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+    Claims
+  </button>
+
+  <div class="nav-label">Sistema</div>
+  <button class="nav-item" onclick="showSection('config')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    Config
+  </button>
+  <button class="nav-item" onclick="showSection('logs')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+    Logs
+  </button>
+
+  <div class="sidebar-footer">
+    <div class="conn-status">
+      <div class="conn-dot" id="ws-dot"></div>
+      <span id="ws-status">Desconectado</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="topbar-right">
+      <div class="status-pill">
+        <div class="status-dot" id="bot-dot"></div>
+        <span id="bot-status">Parado</span>
+      </div>
+      <button class="btn btn-sm" id="toggle-btn" onclick="toggleBot()">Start</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Dashboard -->
+    <div class="section visible" id="sec-dashboard">
+      <div class="grid4">
+        <div class="stat-card">
+          <div class="stat-label">Wallets</div>
+          <div class="stat-value" id="stat-wallets">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Claims</div>
+          <div class="stat-value" id="stat-claims" style="color:var(--green)">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Txs Checadas</div>
+          <div class="stat-value" id="stat-tx">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Status</div>
+          <div class="stat-value" id="stat-status" style="font-size:16px;margin-top:6px;">--</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Claims Recentes</div>
+        <div class="claim-list" id="dashboard-claims">
+          <div class="empty">Nenhum claim detectado ainda...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Log</div>
+        <div class="log-box" id="dashboard-log">
+          <div class="log-line"><span class="log-msg info">Aguardando conexao...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wallets -->
+    <div class="section" id="sec-wallets">
+      <div class="card">
+        <div class="card-title">Adicionar Wallet</div>
+        <div class="input-row">
+          <div class="field">
+            <div class="label">Wallet Address</div>
+            <input type="text" id="add-address" placeholder="Endereco da wallet Solana"/>
+          </div>
+          <div class="field">
+            <div class="label">Coin CA (mint)</div>
+            <input type="text" id="add-mint" placeholder="Contract address da coin"/>
+          </div>
+          <div class="field">
+            <div class="label">Label</div>
+            <input type="text" id="add-label" placeholder="Nome/descricao"/>
+          </div>
+          <div>
+            <button class="btn btn-green" onclick="addWallet()" style="margin-top:16px;">Adicionar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Wallets Monitoradas <span id="wallet-count-badge" style="font-size:11px;color:var(--text3);">0</span></div>
+        <div class="wallet-list" id="wallet-list">
+          <div class="empty">Nenhuma wallet adicionada...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Claims -->
+    <div class="section" id="sec-claims">
+      <div class="card">
+        <div class="card-title">Historico de Claims</div>
+        <div class="claim-list" id="claims-list">
+          <div class="empty">Nenhum claim detectado ainda...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Config -->
+    <div class="section" id="sec-config">
+      <div class="card">
+        <div class="card-title">Configuracoes</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div class="label">RPC URL (Solana)</div>
+            <input type="password" id="cfg-rpc" placeholder="https://your-rpc-url..."/>
+          </div>
+          <div>
+            <div class="label">Discord Webhook URL</div>
+            <input type="password" id="cfg-discord" placeholder="https://discord.com/api/webhooks/..."/>
+          </div>
+          <div>
+            <div class="label">Intervalo de polling (segundos)</div>
+            <input type="number" id="cfg-poll" value="5" min="1" max="60"/>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="btn btn-primary" onclick="saveConfig()">Salvar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="section" id="sec-logs">
+      <div class="card">
+        <div class="card-title">
+          Log Completo
+          <button class="btn btn-sm" onclick="clearLogs()">Limpar</button>
+        </div>
+        <div class="log-box" id="full-log" style="max-height:600px;min-height:400px;">
+          <div class="log-line"><span class="log-msg info">Aguardando conexao...</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let ws = null;
+let claims = [];
+let logs = [];
+let connected = false;
+let botRunning = false;
+
+// ─── Navigation ──────────────────────────────────
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('visible');
+  event.currentTarget.classList.add('active');
+  const titles = {dashboard:'Dashboard',wallets:'Wallets',claims:'Claims',config:'Config',logs:'Logs'};
+  document.getElementById('page-title').textContent = titles[name] || name;
+}
+
+// ─── WebSocket ───────────────────────────────────
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+  ws.onopen = () => {
+    connected = true;
+    document.getElementById('ws-dot').classList.add('ok');
+    document.getElementById('ws-status').textContent = 'Conectado';
+    addLog('Conectado ao servidor', 'ok');
+  };
+
+  ws.onclose = () => {
+    connected = false;
+    document.getElementById('ws-dot').classList.remove('ok');
+    document.getElementById('ws-status').textContent = 'Desconectado';
+    setTimeout(connectWS, 2000);
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      handleMessage(msg);
+    } catch(err) {}
+  };
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'log') {
+    addLog(msg.msg, msg.logType, msg.time);
+  } else if (msg.type === 'stats') {
+    document.getElementById('stat-wallets').textContent = msg.walletCount || 0;
+    document.getElementById('stat-claims').textContent = msg.claims || 0;
+    document.getElementById('stat-tx').textContent = msg.txChecked || 0;
+    botRunning = msg.running;
+    updateBotUI();
+  } else if (msg.type === 'claim') {
+    claims.unshift(msg);
+    if (claims.length > 50) claims.pop();
+    renderClaims();
+    // Flash notification
+    document.title = '** CLAIM! ** Bags Fee Monitor';
+    setTimeout(() => document.title = 'Bags Fee Monitor', 5000);
+  }
+}
+
+// ─── Logs ────────────────────────────────────────
+
+function addLog(msg, type, time) {
+  if (!time) {
+    const d = new Date();
+    time = d.toTimeString().slice(0,8);
+  }
+  logs.push({msg, type, time});
+  if (logs.length > 200) logs.shift();
+
+  const line = `<div class="log-line"><span class="log-time">${time}</span><span class="log-msg ${type||''}">${escHtml(msg)}</span></div>`;
+
+  const dashLog = document.getElementById('dashboard-log');
+  dashLog.innerHTML += line;
+  dashLog.scrollTop = dashLog.scrollHeight;
+  // Keep dashboard log short
+  while (dashLog.children.length > 50) dashLog.removeChild(dashLog.firstChild);
+
+  const fullLog = document.getElementById('full-log');
+  fullLog.innerHTML += line;
+  fullLog.scrollTop = fullLog.scrollHeight;
+}
+
+function clearLogs() {
+  logs = [];
+  document.getElementById('full-log').innerHTML = '';
+  document.getElementById('dashboard-log').innerHTML = '';
+}
+
+// ─── Claims Rendering ───────────────────────────
+
+function renderClaims() {
+  const html = claims.length === 0
+    ? '<div class="empty">Nenhum claim detectado ainda...</div>'
+    : claims.map(c => {
+        const sig = c.signature || '';
+        const shortSig = sig.slice(0,16) + '...' + sig.slice(-8);
+        const solscan = 'https://solscan.io/tx/' + sig;
+        const time = c.timestamp ? new Date(c.timestamp).toLocaleTimeString('pt-BR') : '--';
+        return `<div class="claim-item">
+          <div class="claim-header">
+            <span class="claim-label">CLAIM - ${escHtml(c.label || 'Unknown')}</span>
+            <span class="claim-time">${time}</span>
+          </div>
+          <div class="claim-details">
+            <div class="claim-detail-row"><span class="claim-detail-key">Instrucao</span><span class="claim-detail-val">${escHtml(c.instruction||'')}</span></div>
+            <div class="claim-detail-row"><span class="claim-detail-key">Detalhes</span><span class="claim-detail-val">${escHtml(c.details||'')}</span></div>
+            <div class="claim-detail-row"><span class="claim-detail-key">Wallet</span><span class="claim-detail-val">${escHtml(c.wallet||'')}</span></div>
+            <div class="claim-detail-row"><span class="claim-detail-key">Coin</span><span class="claim-detail-val">${escHtml(c.coinMint||'N/A')}</span></div>
+            <div class="claim-detail-row"><span class="claim-detail-key">Tx</span><span class="claim-detail-val"><a href="${solscan}" target="_blank">${shortSig}</a></span></div>
+          </div>
+        </div>`;
+      }).join('');
+
+  document.getElementById('dashboard-claims').innerHTML = claims.length === 0
+    ? '<div class="empty">Nenhum claim detectado ainda...</div>'
+    : claims.slice(0,5).map(c => renderClaimItem(c)).join('');
+
+  document.getElementById('claims-list').innerHTML = html;
+}
+
+function renderClaimItem(c) {
+  const sig = c.signature || '';
+  const shortSig = sig.slice(0,16) + '...' + sig.slice(-8);
+  const solscan = 'https://solscan.io/tx/' + sig;
+  const time = c.timestamp ? new Date(c.timestamp).toLocaleTimeString('pt-BR') : '--';
+  return `<div class="claim-item">
+    <div class="claim-header">
+      <span class="claim-label">CLAIM - ${escHtml(c.label || 'Unknown')}</span>
+      <span class="claim-time">${time}</span>
+    </div>
+    <div class="claim-details">
+      <div class="claim-detail-row"><span class="claim-detail-key">Instrucao</span><span class="claim-detail-val">${escHtml(c.instruction||'')}</span></div>
+      <div class="claim-detail-row"><span class="claim-detail-key">Detalhes</span><span class="claim-detail-val">${escHtml(c.details||'')}</span></div>
+      <div class="claim-detail-row"><span class="claim-detail-key">Tx</span><span class="claim-detail-val"><a href="${solscan}" target="_blank">${shortSig}</a></span></div>
+    </div>
+  </div>`;
+}
+
+// ─── Wallets ─────────────────────────────────────
+
+async function loadWallets() {
+  try {
+    const r = await fetch(API + '/api/wallets');
+    const data = await r.json();
+    renderWallets(data.wallets || []);
+  } catch(e) {}
+}
+
+function renderWallets(wallets) {
+  const el = document.getElementById('wallet-list');
+  document.getElementById('wallet-count-badge').textContent = wallets.length;
+
+  if (wallets.length === 0) {
+    el.innerHTML = '<div class="empty">Nenhuma wallet adicionada...</div>';
+    return;
+  }
+
+  el.innerHTML = wallets.map(w => `
+    <div class="wallet-item">
+      <div class="wallet-left">
+        <div class="wallet-icon">W</div>
+        <div class="wallet-info">
+          <div class="wallet-name">${escHtml(w.label || 'Wallet')}</div>
+          <div class="wallet-addr">${escHtml(w.address)}</div>
+          ${w.coinMint ? `<div class="wallet-mint">CA: ${escHtml(w.coinMint)}</div>` : ''}
+        </div>
+      </div>
+      <div class="wallet-actions">
+        <a href="https://solscan.io/account/${w.address}" target="_blank" class="btn btn-sm">Solscan</a>
+        <button class="btn btn-sm btn-danger" onclick="deleteWallet('${w.address}')">Remover</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addWallet() {
+  const address = document.getElementById('add-address').value.trim();
+  const coinMint = document.getElementById('add-mint').value.trim();
+  const label = document.getElementById('add-label').value.trim();
+
+  if (!address) return alert('Cole o endereco da wallet!');
+
+  try {
+    const r = await fetch(API + '/api/wallets', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({address, coinMint, label})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      document.getElementById('add-address').value = '';
+      document.getElementById('add-mint').value = '';
+      document.getElementById('add-label').value = '';
+      loadWallets();
+    } else {
+      alert(data.error || 'Erro');
+    }
+  } catch(e) { alert('Erro de conexao'); }
+}
+
+async function deleteWallet(address) {
+  if (!confirm('Remover esta wallet do monitoramento?')) return;
+  try {
+    await fetch(API + '/api/wallets/delete', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({address})
+    });
+    loadWallets();
+  } catch(e) {}
+}
+
+// ─── Config ──────────────────────────────────────
+
+async function loadConfig() {
+  try {
+    const r = await fetch(API + '/api/config');
+    const data = await r.json();
+    document.getElementById('cfg-rpc').placeholder = data.rpcUrl === 'configured' ? 'Configurado (oculto)' : 'https://your-rpc...';
+    document.getElementById('cfg-discord').placeholder = data.discordWebhookUrl === 'configured' ? 'Configurado (oculto)' : 'https://discord.com/api/webhooks/...';
+    document.getElementById('cfg-poll').value = data.pollIntervalSecs || 5;
+  } catch(e) {}
+}
+
+async function saveConfig() {
+  const body = {};
+  const rpc = document.getElementById('cfg-rpc').value.trim();
+  const discord = document.getElementById('cfg-discord').value.trim();
+  const poll = parseInt(document.getElementById('cfg-poll').value);
+
+  if (rpc) body.rpcUrl = rpc;
+  if (discord) body.discordWebhookUrl = discord;
+  if (poll > 0) body.pollIntervalSecs = poll;
+
+  try {
+    await fetch(API + '/api/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    document.getElementById('cfg-rpc').value = '';
+    document.getElementById('cfg-discord').value = '';
+    loadConfig();
+    addLog('Config salvo!', 'ok');
+  } catch(e) { alert('Erro'); }
+}
+
+// ─── Bot Control ─────────────────────────────────
+
+async function toggleBot() {
+  const endpoint = botRunning ? '/api/stop' : '/api/start';
+  try {
+    await fetch(API + endpoint, {method:'POST'});
+  } catch(e) {}
+}
+
+function updateBotUI() {
+  const dot = document.getElementById('bot-dot');
+  const label = document.getElementById('bot-status');
+  const btn = document.getElementById('toggle-btn');
+  const statStatus = document.getElementById('stat-status');
+
+  if (botRunning) {
+    dot.classList.add('running');
+    label.textContent = 'Monitorando';
+    btn.textContent = 'Pausar';
+    btn.className = 'btn btn-sm btn-danger';
+    statStatus.textContent = 'Ativo';
+    statStatus.style.color = 'var(--green)';
+  } else {
+    dot.classList.remove('running');
+    label.textContent = 'Pausado';
+    btn.textContent = 'Iniciar';
+    btn.className = 'btn btn-sm btn-green';
+    statStatus.textContent = 'Pausado';
+    statStatus.style.color = 'var(--yellow)';
+  }
+}
+
+// ─── Utils ───────────────────────────────────────
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ─── Init ────────────────────────────────────────
+
+connectWS();
+loadWallets();
+loadConfig();
+</script>
+
+</body>
+</html>
