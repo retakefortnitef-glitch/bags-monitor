@@ -179,6 +179,37 @@ async function sendDiscordAlert(wallet, signature, claim) {
   }
 }
 
+async function sendWalletAddedAlert(wallet) {
+  if (!config.discordWebhookUrl) return;
+
+  const walletUrl = `https://solscan.io/account/${wallet.address}`;
+  const axiomField = wallet.coinMint
+    ? `[${wallet.coinMint}](https://axiom.trade/meme/${wallet.coinMint}?chain=sol)`
+    : 'N/A';
+
+  const embed = {
+    embeds: [{
+      title: 'NOVA COIN ADICIONADA',
+      color: 0x3B82F6,
+      fields: [
+        { name: 'Label', value: wallet.label || 'Sem nome', inline: true },
+        { name: 'Wallet', value: `[Ver no Solscan](${walletUrl})\n\`${wallet.address}\``, inline: false },
+        { name: 'Moeda (Axiom)', value: axiomField, inline: false },
+      ],
+      footer: { text: 'Bags Fee Monitor' },
+      timestamp: new Date().toISOString(),
+    }],
+  };
+
+  try {
+    await fetch(config.discordWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(embed),
+    });
+  } catch {}
+}
+
 // ─── Monitor Loop ────────────────────────────────
 async function monitorLoop() {
   // Baseline
@@ -318,6 +349,7 @@ const server = http.createServer(async (req, res) => {
     saveConfig(config);
     log(`Wallet adicionada: ${body.label || body.address.slice(0, 8)}`, 'ok');
     emitStats();
+    await sendWalletAddedAlert(config.wallets[config.wallets.length - 1]);
     json(res, { ok: true });
   } else if (url.pathname === '/api/wallets/delete' && req.method === 'POST') {
     const body = await readBody(req);
