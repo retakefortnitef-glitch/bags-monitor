@@ -7,8 +7,9 @@ import { WebSocketServer } from 'ws';
 const CONFIG_PATH = 'bags_config.json';
 const BAGS_FEE_V2 = 'FEE2tBhCKAt7shrod19QttSVREUYPiyMzoku1mL1gqVK';
 const BAGS_FEE_V1 = 'FEEhPbKVKnco9EXnaY3i4R5rQVUx91wgVfu8qokixywi';
-const TG_TOKEN = '8732092516:AAG-C3CneofOGTwgJeBNyH6nzoECkZ7kN7A';
-const TG_CHAT_ID = '-5171513471';
+const MONITOR_VERSION = 'v1.1.0';
+const TG_TOKEN = process.env.TG_TOKEN || '8732092516:AAG-C3CneofOGTwgJeBNyH6nzoECkZ7kN7A';
+const TG_CHAT_ID = process.env.TG_CHAT_ID || '-5171513471';
 
 function loadConfig() {
   try {
@@ -55,6 +56,98 @@ function emitStats() {
   });
 }
 
+function getPubkey(key) {
+  return typeof key === 'string' ? key : key?.pubkey || '';
+}
+
+function collectBagsInstructionNames(tx) {
+  const names = [];
+  const outer = tx?.transaction?.message?.instructions || [];
+  const inner = (tx?.meta?.innerInstructions || []).flatMap(group => group?.instructions || []);
+
+  for (const instr of [...outer, ...inner]) {
+    const pid = instr?.programId || '';
+    if (pid !== BAGS_FEE_V2 && pid !== BAGS_FEE_V1) continue;
+
+    const parsedType = String(instr?.parsed?.type || '').trim();
+    if (parsedType) {
+      names.push(parsedType);
+    } else if (instr?.data) {
+      names.push(`bags_instruction (${instr.data.slice(0, 12)}...)`);
+    }
+  }
+
+  return names;
+}
+
+function collectBagsClaimLogs(tx) {
+  const logs = tx?.meta?.logMessages || [];
+  const claimLogs = [];
+
+  for (const logLine of logs) {
+    if (typeof logLine !== 'string') continue;
+    if (!logLine.toLowerCase().includes('claim')) continue;
+    if (!logLine.includes(BAGS_FEE_V1) && !logLine.includes(BAGS_FEE_V2) && !logLine.includes('Program log: Instruction:')) continue;
+    claimLogs.push(logLine);
+  }
+
+  return claimLogs;
+}
+
+function formatClaimInstruction(claimInstructions, claimLogs) {
+  const rawNames = claimInstructions.length
+    ? claimInstructions
+    : claimLogs
+        .map(logLine => {
+          const match = logLine.match(/Instruction:\s*([A-Za-z0-9_]+)/);
+          return match ? match[1] : null;
+        })
+        .filter(Boolean);
+
+  if (!rawNames.length) return 'Fees: Claim';
+  if (rawNames.some(name => name.toLowerCase().includes('claim'))) return 'Fees: Claim';
+  return rawNames.join(' + ');
+}
+
+function getWalletSolChange(tx, walletAddress) {
+  const accountKeys = tx?.transaction?.message?.accountKeys || [];
+  const walletIndex = accountKeys.findIndex(key => getPubkey(key) === walletAddress);
+  if (walletIndex === -1) return null;
+
+  const preBal = tx?.meta?.preBalances || [];
+  const postBal = tx?.meta?.postBalances || [];
+  if (preBal[walletIndex] == null || postBal[walletIndex] == null) return null;
+
+  const diff = (postBal[walletIndex] - preBal[walletIndex]) / 1e9;
+  return Math.abs(diff) > 0.000001 ? diff : null;
+}
+
+function getWalletTokenChanges(tx, walletAddress) {
+  const preTok = tx?.meta?.preTokenBalances || [];
+  const postTok = tx?.meta?.postTokenBalances || [];
+  const changes = [];
+
+  const touchedAccounts = new Set([
+    ...preTok.filter(balance => balance?.owner === walletAddress).map(balance => balance.accountIndex),
+    ...postTok.filter(balance => balance?.owner === walletAddress).map(balance => balance.accountIndex),
+  ]);
+
+  for (const accountIndex of touchedAccounts) {
+    const pre = preTok.find(balance => balance.accountIndex === accountIndex);
+    const post = postTok.find(balance => balance.accountIndex === accountIndex);
+    const mint = post?.mint || pre?.mint || '';
+    const preAmt = pre?.uiTokenAmount?.uiAmount || 0;
+    const postAmt = post?.uiTokenAmount?.uiAmount || 0;
+    const diff = postAmt - preAmt;
+
+    if (Math.abs(diff) > 0.0000001) {
+      changes.push({ mint, change: diff, from: preAmt, to: postAmt });
+    }
+  }
+
+  return changes;
+}
+
 // ─── Solana RPC ──────────────────────────────────
 async function rpcCall(method, params) {
   const resp = await fetch(config.rpcUrl, {
@@ -76,65 +169,38 @@ async function fetchTransaction(sig) {
 }
 
 // ─── Claim Detection ─────────────────────────────
-function checkBagsClaim(tx) {
+function checkBagsClaim(tx, walletAddress) {
   const keys = tx?.transaction?.message?.accountKeys;
-  if (!keys) return null;
+  if (!keys || !walletAddress) return null;
 
   const hasBags = keys.some(k => {
-    const pubkey = typeof k === 'string' ? k : k?.pubkey;
+    const pubkey = getPubkey(k);
     return pubkey === BAGS_FEE_V2 || pubkey === BAGS_FEE_V1;
   });
 
   if (!hasBags) return null;
 
-  // Find claim instructions
-  let claimType = '';
-  const instrs = tx?.transaction?.message?.instructions || [];
-  for (const instr of instrs) {
-    const pid = instr.programId || '';
-    if (pid === BAGS_FEE_V2 || pid === BAGS_FEE_V1) {
-      const name = instr?.parsed?.type || '';
-      if (name.includes('claim')) {
-        claimType += (claimType ? ' + ' : '') + name;
-      } else if (!claimType && instr.data) {
-        claimType = `bags_instruction (${instr.data.slice(0, 12)}...)`;
-      }
-    }
-  }
-  if (!claimType) claimType = 'bags_fee_interaction';
-
-  // Token changes
-  const tokenChanges = [];
+  const instructionNames = collectBagsInstructionNames(tx);
+  const claimInstructions = instructionNames.filter(name => name.toLowerCase().includes('claim'));
+  const claimLogs = collectBagsClaimLogs(tx);
+  const tokenChanges = getWalletTokenChanges(tx, walletAddress);
   const detailParts = [];
-  const preTok = tx?.meta?.preTokenBalances || [];
-  const postTok = tx?.meta?.postTokenBalances || [];
-
-  for (const post of postTok) {
-    const mint = post.mint || '';
-    const postAmt = post?.uiTokenAmount?.uiAmount || 0;
-    const pre = preTok.find(p => p.accountIndex === post.accountIndex);
-    const preAmt = pre?.uiTokenAmount?.uiAmount || 0;
-    const diff = postAmt - preAmt;
-    if (Math.abs(diff) > 0.0000001) {
-      tokenChanges.push({ mint, change: diff, from: preAmt, to: postAmt });
-      detailParts.push(`${mint.slice(0, 4)}...${mint.slice(-4)}: ${diff > 0 ? '+' : ''}${diff.toFixed(6)}`);
-    }
+  for (const change of tokenChanges) {
+    const mint = change.mint || '';
+    detailParts.push(`${mint.slice(0, 4)}...${mint.slice(-4)}: ${change.change > 0 ? '+' : ''}${change.change.toFixed(6)}`);
   }
 
-  // SOL change
-  let solAmount = null;
-  const preBal = tx?.meta?.preBalances;
-  const postBal = tx?.meta?.postBalances;
-  if (preBal?.length && postBal?.length) {
-    const diff = (postBal[0] - preBal[0]) / 1e9;
-    if (Math.abs(diff) > 0.000001) {
-      solAmount = diff;
-      detailParts.push(`SOL: ${diff > 0 ? '+' : ''}${diff.toFixed(6)}`);
-    }
+  const solAmount = getWalletSolChange(tx, walletAddress);
+  if (solAmount != null) {
+    detailParts.push(`SOL: ${solAmount > 0 ? '+' : ''}${solAmount.toFixed(6)}`);
   }
+
+  const hasExplicitClaim = claimInstructions.length > 0 || claimLogs.length > 0;
+  if (!hasExplicitClaim) return null;
+  const instructionLabel = formatClaimInstruction(claimInstructions, claimLogs);
 
   return {
-    instruction: claimType,
+    instruction: instructionLabel || 'claim_detected_from_logs',
     details: detailParts.length ? detailParts.join(' | ') : 'Claim de fees detectado',
     solAmount,
     tokenChanges,
@@ -164,7 +230,7 @@ async function sendDiscordAlert(wallet, signature, claim) {
         { name: 'Moeda (Axiom)', value: axiomField, inline: false },
         { name: 'Transacao', value: `[Ver no Solscan](${solscanUrl})`, inline: false },
       ],
-      footer: { text: 'Bags Fee Monitor' },
+      footer: { text: `Bags Fee Monitor ${MONITOR_VERSION}` },
       timestamp: new Date().toISOString(),
     }],
   };
@@ -192,7 +258,7 @@ async function sendDiscordAlert(wallet, signature, claim) {
     + (axiomLink ? `<b>Moeda:</b> <a href="${axiomLink}">Axiom</a>\n` : '')
     + `<b>Tx:</b> <a href="${solscanUrl}">Solscan</a>\n`
     + `<b>Wallet:</b> <a href="${walletUrl}">Ver</a>`;
-  await sendTelegram(tgMsg);
+  await sendTelegram(`<b>[${MONITOR_VERSION}]</b>\n${tgMsg}`);
 }
 
 async function sendTelegram(text) {
@@ -222,7 +288,7 @@ async function sendWalletAddedAlert(wallet) {
         { name: 'Wallet', value: `[Ver no Solscan](${walletUrl})\n\`${wallet.address}\``, inline: false },
         { name: 'Moeda (Axiom)', value: axiomField, inline: false },
       ],
-      footer: { text: 'Bags Fee Monitor' },
+      footer: { text: `Bags Fee Monitor ${MONITOR_VERSION}` },
       timestamp: new Date().toISOString(),
     }],
   };
@@ -243,7 +309,7 @@ async function sendWalletAddedAlert(wallet) {
     + `<b>Label:</b> ${wallet.label || 'Sem nome'}\n`
     + `<b>Wallet:</b> <a href="${walletUrl}">${wallet.address.slice(0, 8)}...</a>\n`
     + (axiomLink ? `<b>Moeda:</b> <a href="${axiomLink}">Axiom</a>\n` : '');
-  await sendTelegram(tgMsg);
+  await sendTelegram(`<b>[${MONITOR_VERSION}]</b>\n${tgMsg}`);
 }
 
 // ─── Monitor Loop ────────────────────────────────
@@ -296,7 +362,7 @@ async function monitorLoop() {
 
           try {
             const tx = await fetchTransaction(sigInfo.signature);
-            const claim = checkBagsClaim(tx);
+            const claim = checkBagsClaim(tx, wallet.address);
 
             if (claim) {
               claimCount++;
